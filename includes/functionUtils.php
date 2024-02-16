@@ -1,6 +1,6 @@
 <?php
 
-define('DISTANCE_MAX_COORD', 10);
+const DISTANCE_MAX_COORD = 10;
 
 /**
  * @function cleanDescription
@@ -24,15 +24,14 @@ function cleanDescription($postContent)
     $postContent = preg_replace('/<a\b[^>]*>.*?<\/a>|<img\b[^>]*>/', '', $postContent);
 
     // Supprimer les chaînes <!-- wp:fl-builder/layout --> et <!-- /wp:fl-builder/layout -->
-    $postContent = preg_replace('/<!--\s*\/?wp:fl-builder\/layout[^>]* -->/', '', $postContent);
-
-    return $postContent;
+    return preg_replace('/<!--\s*\/?wp:fl-builder\/layout[^>]* -->/', '', $postContent);
 }
 
 /**
  * @function cleanDuree
  * @description Clean the duration
  * @param $duree
+ * @return array
  */
 function cleanDuree($duree)
 {
@@ -72,10 +71,8 @@ function getJsonTrack($file)
     $trackContent = file_get_contents($trackFile);
 
     // Get the json of the track file
-    $trackJson = json_decode($trackContent, true);
-
     // Return the json of the track file
-    return $trackJson;
+    return json_decode($trackContent, true);
 }
 
 /**
@@ -122,7 +119,7 @@ function getListJsonFiles()
  * @param $coordSignalement
  * @param $coordTrack
  * @param $inMeter (true if you want the distance in meter)
- * @return float|int
+ * @return float
  */
 function getDistanceBetweenTwoCoordinates($coordSignalement, $coordTrack, $inMeter = false) {
     // Get the latitude and longitude of the signalement
@@ -157,26 +154,66 @@ function getDistanceBetweenTwoCoordinates($coordSignalement, $coordTrack, $inMet
     return $distance;
 }
 
+/**
+ * @param $signalement
+ * @param array $listExcursions
+ * @return string
+ */
+function writeTheCodeHTML($signalement, array $listExcursions): string
+{
+    $corps = "<html>
+            <head>
+                <title>Signalements</title>
+                <style>
+                #titre {
+                    font-size: 25px;
+                    font-weight: bold;
+                    margin-top: 1rem;
+                    margin-bottom: 1rem;
+                }
+                #type {
+                    color: #009944;
+                    font-size: 18px;
+                    font-weight: lighter;
+                }
+                #autres {
+                    font-size: 18px;
+                    font-weight: lighter;
+                }
+                </style>
+            </head>
+                <body>
+                    <p id='titre'>Le signalement " . $signalement->nom . " a été ajouté</p>
+                    <p id='type'>Type : " . $signalement->type . "</p>
+                    <p id='autres'>Description : " . $signalement->description . "</p>
+                    <p id='autres'>Coordonnées : " . $signalement->lat . ", " . $signalement->lon . "</p>
+                    <p id='autres'>Il est présent dans les excursions suivantes : " . implode(', ', $listExcursions) . "</p>
+                </body>
+            </html>";
+    return $corps;
+}
+
 /** @function envoieEmail
  * @description Envoie un email
- * @param $email string L'adresse email du destinataire
+ * @param $to
  * @param $subject string Le sujet du mail
- * @param $message string Le message du mail
+ * @param corps string Le corps du mail
  * @return bool
  */
-function envoieEmail($to, $subject, $message, $headers, $attachments = null)
+function sendEmail($to, $subject, $corps)
 {
-    //Add name to the header
-    $headers .= 'From: ' . get_bloginfo('name') . ' <' . get_bloginfo('admin_email') . '>' . "\r\n";
+    // Headers
+    $headers = 'From: ' . get_bloginfo('name') . ' <' . get_bloginfo('admin_email') . '>' . "\r\n";
+    $headers .= 'MIME-Version: 1.0' . "\r\n";
+    $headers .= 'Content-Type: text/html; charset=UTF-8' . "\r\n";
 
     // Send the email
-    return wp_mail($to, $subject, $message, $headers, $attachments);
+    return wp_mail($to, $subject, $corps, $headers);
 }
 
 /**
  * @function matchCoordinatesBetweenAllTracks
  * @description Match the coordinates between all the tracks
- * @param $tracks
  * @return void
  */
 function matchCoordinatesBetweenAllTracks()
@@ -239,7 +276,7 @@ function matchCoordinatesBetweenAllTracks()
                     // Add the next posId in the finalCoordinates array and distance
                     $finalCoordinates[$coordTrackKey][] = array(
                         'postId' => $trackFilesKeys[$i + 1],
-                        'nomExcursion' => $trackFiles[$trackFilesKeys[$i]]['nomExcursion'],
+                        'nomExcursion' => $trackFiles[$trackFilesKeys[$i + 1]]['nomExcursion'],
                         'distance' => $distance,
                         'lat' => $coordNextTrack['lat'],
                         'lon' => $coordNextTrack['lon'],
@@ -263,8 +300,8 @@ function matchCoordinatesBetweenAllTracks()
     // Create the json file
     $jsonFile = fopen($uploadPath . '/utileAPI/listMatchCoordinates.json', 'w');
 
-    // Write the json in the file
-    fwrite($jsonFile, $finalCoordinates);
+    // Write the finalCoordinates in the file
+    fwrite($jsonFile, json_encode($finalCoordinates));
 
     // Close the file
     fclose($jsonFile);
@@ -273,7 +310,7 @@ function matchCoordinatesBetweenAllTracks()
 /**
  * @function convertGpxToJson
  * @description Convert the gpx file to json and upload it
- * @return array $response
+ * @return void|WP_Error $response
  */
 function convertGpxToJson()
 {
@@ -305,7 +342,6 @@ function convertGpxToJson()
             {
                 if ($file->isFile() && $file->getFilename() == $fileName) {
                     $filePath = $file->getPathname();
-                    print_r($filePath);
                     break;
                 }
             }
@@ -341,7 +377,7 @@ function convertGpxToJson()
  * @description This function is used to convert the gpx file to json and upload the json file to the server
  * @return void
  */
-function convertGpxToJsonAndUploadListJson() {
+function convertGpxToJsonAndUploadListJson($pieces, $is_new_item, $id) {
     // Convert the gpx file to json
     convertGpxToJson();
 
@@ -360,7 +396,7 @@ function convertGpxToJsonAndUploadListJson() {
  * @param $latitude float The latitude of the signalement
  * @param $longitude float The longitude of the signalement
  * @param $post_id int The id of the excursion
- * @return idSignalement int The id of the signalement
+ * @return int|WP_ERROR int The id of the signalement
  */
 function  insertSignalementInBD(string $nom, string $type, string $description, string $image, float $latitude, float $longitude, int $post_id)
 {

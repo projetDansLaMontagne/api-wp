@@ -19,7 +19,7 @@ include_once 'includes/functionUtils.php';
 /** =============================================== GLOBAL VARIABLES ================================================ */
 
 $debug = true;
-define('DISTANCE_MAX', 30);
+const DISTANCE_MAX = 30;
 
 /** =============================================== ADD BUTTON DEBUG MODE ================================================= */
 function linkDebugMode($links): array
@@ -56,7 +56,7 @@ function handleDebugMode()
 /**
  * @function getFile
  * @description Get the file
- * @return array $response
+ * @return array|WP_Error
  * @autor Robin Alonzo
  */
 function getFile(WP_REST_Request $request)
@@ -98,7 +98,7 @@ function getFile(WP_REST_Request $request)
 
 /** @function getMd5File
  * @description Get the md5 of the file
- * @param $file string The file
+ * @param WP_REST_Request $request
  * @return string
  */
 function getMd5File(WP_REST_Request $request)
@@ -132,7 +132,7 @@ function getMd5File(WP_REST_Request $request)
 /**
  * @function getExcursions
  * @description Get all the excursions in the database
- * @return array $response
+ * @return array|WP_REST_RESPONSE
  * @autor Robin Alonzo & Tom Planche
  */
 function getExcursions(WP_REST_Request $request)
@@ -200,7 +200,6 @@ function getExcursions(WP_REST_Request $request)
 
             // Verify if the query is correct
             if ($wpdb->last_error !== '') {
-                print_r($wpdb->last_error);
                 return new WP_Error('erreur_bdd', 'Erreur lors de la récupération des signalements', array('status' => 500));
             }
 
@@ -217,10 +216,6 @@ function getExcursions(WP_REST_Request $request)
 
             // Loop through the signalements
             foreach ($signalements as $signalement) {
-                $signalement->nom = $signalement->nom;
-                $signalement->type = $signalement->type;
-                $signalement->description = $signalement->description;
-                $signalement->image = $signalement->image;
                 $signalement->lat = floatval($signalement->lat);
                 $signalement->lon = floatval($signalement->lon);
                 $signalement->idExcursion = intval($signalement->idExcursion);
@@ -272,9 +267,8 @@ function getExcursions(WP_REST_Request $request)
 /**
  * @function setSignalement
  * @description Set the excursion
- * @param $signalement array The signalement
- * @param $post_id int The id of the excursion
- * @return array
+ * @param WP_REST_Request $request
+ * @return array|WP_REST_RESPONSE
  */
 function setSignalement(WP_REST_Request $request)
 {
@@ -282,12 +276,6 @@ function setSignalement(WP_REST_Request $request)
     $data = $request->get_params();
 
     $signalements = json_decode($data['signalements']);
-/*    $md5 = $data['md5'];
-
-    // Get the md5 of the excursions
-    if ($md5 !== hash('md5', json_encode($signalements))) {
-        return new WP_ERROR('md5_incorrect', 'Le md5 est incorrect', array('status' => 400));
-    }*/
 
     // Verify $signalements
     if (!is_array($signalements)) {
@@ -318,8 +306,16 @@ function setSignalement(WP_REST_Request $request)
         $idSignalement = insertSignalementInBD($signalement->nom, $signalement->type, $signalement->description, $signalement->image, $signalement->lat, $signalement->lon, $signalement->postId);
 
         // Verify if the query is correct
-        if ($idSignalement === false) {
+        if ($idSignalement == false) {
             return new WP_ERROR('erreur_bdd', 'Erreur lors de l\'insertion du signalement', array('status' => 500));
+        }
+
+        // Get the name of the excursion
+        $nomExcursionInitial = get_post_field('post_title', $signalement->postId);
+
+        // Verify if nomExcursionInitial is not in the list if no insert
+        if (!in_array($nomExcursionInitial, $listExcursions)) {
+            array_push($listExcursions, $nomExcursionInitial);
         }
 
         // Get the coordinates of the signalement
@@ -349,55 +345,27 @@ function setSignalement(WP_REST_Request $request)
                 $idExcursion = intval($value[0]['postId']);
                 $nomExcursion = $value[0]['nomExcursion'];
 
-                // Add the excursion to the list
-                array_push($listExcursions, $nomExcursion);
-
                 // Insert the relation signalement in the database
                 insertRelationInBD($idSignalement, $idExcursion);
 
-                // Break the loop
-                break;
+                // Verify if nomExcursionInitial is not in the list if no insert
+                if (!in_array($nomExcursion, $listExcursions)) {
+                    array_push($listExcursions, $nomExcursion);
+                }
             }
         }
+        // Write the code HTML
+        $corps = writeTheCodeHTML($signalement, $listExcursions);
+        sendEmail("robin.alonzo03@gmail.com", "[VALPINETA-EU] NOUVEAU SIGNALEMENT", $corps);
     }
-    /*        // Send email with image
-            $message = "
-            <html>
-            <head>
-                <title>Signalements</title>
-            </head>
-            <body>
-                <p>Le signalement " . $signalement->nom . " a été ajouté</p>
-                <p>Type : " . $signalement->type . "</p>
-                <p>Description : " . $signalement->description . "</p>
-                <p>Image : <img src=" . $signalement->image . "/></p>
-                <p>Coordonnées : " . $signalement->lat . ", " . $signalement->lon . "</p>
-                <p>Il est présent dans les excursions suivantes : " . implode(', ', $listExcursions) . "</p>
-            </body>
-            </html>
-            ";
-
-            // En-têtes pour spécifier le format HTML
-            $headers = "MIME-Version: 1.0" . "\r\n";
-            $headers .= "Content-type:text/html;charset=UTF-8" . "\r\n";
-
-            // Attachement de l'image
-            $image = "2222";
-            envoieEmail("robin.alonzo03@gmail.com", "Nouveau signalement", $message, $headers, $image);*/
     return new WP_REST_RESPONSE("L'insertion des signalements c'est bien passé", 200);
-}
-
-function testFunction()
-{
-    matchCoordinatesBetweenAllTracks();
-    return new WP_REST_RESPONSE("La fonction c'est bien passé", 200);
 }
 
 /* =============================================== BASE DE DONNEES ================================================= */
 /**
  * @function getSignalements
  * @description Get all the signalements in the database
- * @return array
+ * @return array|WP_REST_RESPONSE
  */
 function getSignalements()
 {
@@ -483,7 +451,7 @@ function createTable()
 /**
  * @function dropTable
  * @description Drop table signalement in the database
- * @return array
+ * @return array|WP_REST_RESPONSE
  */
 function dropTable()
 {
@@ -514,7 +482,7 @@ function dropTable()
 /**
  * @function showTables
  * @description Show tables in the database
- * @return array
+ * @return WP_ERROR|WP_REST_RESPONSE
  */
 function showTables()
 {
@@ -546,7 +514,7 @@ function activateTaskCronDaily() {
     if (!wp_next_scheduled('CRON_EVENT')) {
 
         // Schedule the event to run daily
-        wp_schedule_event(time(), 'daily', 'CRON_EVENT');
+        wp_schedule_event(time(), 'hourly', 'CRON_EVENT');
     }
 }
 
@@ -640,6 +608,7 @@ register_activation_hook(__FILE__, 'activateTaskCronDaily');
 
 // Add the action to the cron event
 add_action('CRON_EVENT', 'convertGpxToJsonAndUploadListJson');
+add_action( 'pods_api_post_save_pod_item_excursion', 'convertGpxToJsonAndUploadListJson', 10, 3);
 
 // Add the rest_api_init action
 add_action('rest_api_init', __NAMESPACE__ . '\\register_api');

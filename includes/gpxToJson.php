@@ -189,6 +189,5 @@ function get_meters_between_points($latitude1, $longitude1, $latitude2, $longitu
     $a = (sin($dp / 2) * sin($dp / 2)) + (cos($p1) * cos($p2) * sin($dl / 2) * sin($dl / 2));
     $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
     $r = 6371008; // Earth's average radius, in meters
-    $d = $r * $c;
-    return $d; // distance, in meters
+    return $r * $c; // distance, in meters
 }
