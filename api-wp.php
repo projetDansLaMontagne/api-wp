@@ -506,16 +506,26 @@ function showTables()
 
 /* =============================================== CRON ================================================= */
 /**
- * @function activateTaskCronDaily
- * @description This function is used to run the cron job
+ * @function asyncConvertGpxToJsonAndUploadListJson
+ * @description This function is used to convert the gpx to json and upload the listMatchCoordinates.json
  * @return void
  */
-function activateTaskCronDaily() {
-    if (!wp_next_scheduled('CRON_EVENT')) {
+function podsSaveFunction($pieces, $is_new_item, $id)
+{
+    wp_schedule_single_event(time(), 'CRON_EVENT_GPX', array($pieces, $is_new_item, $id));
+}
 
-        // Schedule the event to run daily
-        wp_schedule_event(time(), 'hourly', 'CRON_EVENT');
-    }
+/**
+ * @function asyncConvertGpxToJsonAndUploadListJson
+ * @description This function is used to convert the gpx file to json and upload the json file to the server
+ * @return void
+ */
+function asyncConvertGpxToJsonAndUploadListJson($pieces, $is_new_item, $id) {
+    // Convert the gpx file to json
+    convertGpxToJson();
+
+    // Get the list of json tracks
+    matchCoordinatesBetweenAllTracks();
 }
 
 /* ================================================ WORDPRESS HOOKS ================================================ */
@@ -607,8 +617,8 @@ register_activation_hook(__FILE__, 'create_table');
 register_activation_hook(__FILE__, 'activateTaskCronDaily');
 
 // Add the action to the cron event
-add_action('CRON_EVENT', 'convertGpxToJsonAndUploadListJson');
-add_action( 'pods_api_post_save_pod_item_excursion', 'convertGpxToJsonAndUploadListJson', 10, 3);
+add_action('CRON_EVENT_GPX', 'asyncConvertGpxToJsonAndUploadListJson', 10, 3);
+add_action('pods_api_post_save_pod_item_excursion', 'podsSaveFunction', 10, 3);
 
 // Add the rest_api_init action
 add_action('rest_api_init', __NAMESPACE__ . '\\register_api');

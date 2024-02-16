@@ -372,19 +372,6 @@ function convertGpxToJson()
     }
 }
 
-/**
- * @function convertGpxToJsonAndUploadListJson
- * @description This function is used to convert the gpx file to json and upload the json file to the server
- * @return void
- */
-function convertGpxToJsonAndUploadListJson($pieces, $is_new_item, $id) {
-    // Convert the gpx file to json
-    convertGpxToJson();
-
-    // Get the list of json tracks
-    matchCoordinatesBetweenAllTracks();
-}
-
 /*===================================== BASE DE DONNEES =====================================*/
 /**
  * @function insertSignalement
